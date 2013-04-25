@@ -1,0 +1,66 @@
+#!/bin/bash
+set -u -e -E -o pipefail
+
+VENV_DIR=venv
+
+
+trap "echo AN ERROR OCCURED!" ERR
+
+echo "-- creating a virtualenv in $VENV_DIR"
+virtualenv $VENV_DIR
+
+echo "-- using this virtualenv"
+set +u
+. $VENV_DIR/bin/activate
+set -u
+
+echo "-- installing base packages"
+pip install pybuilder
+pip install committer
+
+echo "-- installing additional packages"
+pip install Twisted
+pip install PyYaml
+pip install hostexpand
+pip install pycontrol
+
+#shopt -s nullglob
+
+echo "-- linking all present projects"
+PROJECT_FOUND=
+for PROJECT in *; do
+    [[ ! -d $PROJECT ]] && continue
+    [[ $PROJECT == $VENV_DIR ]] && continue
+
+    echo
+    echo "-- updating $PROJECT"
+    PROJECT_FULLDIR=$(readlink -e $PROJECT)
+    (
+        cd $PROJECT
+        up
+    )
+    echo "-- linking $PROJECT"
+    (
+        cd $VENV_DIR/bin
+        ln -sf $PROJECT_FULLDIR/src/main/scripts/* .
+    )
+    (
+        cd $VENV_DIR/lib/python*/site-packages/
+        ln -sf $PROJECT_FULLDIR/src/main/python/* .
+    )
+    echo
+    PROJECT_FOUND=yes
+done
+
+echo
+echo
+if [[ -z $PROJECT_FOUND ]]; then
+    echo "no projects found; consider checking out some projects here,"
+    echo "then rerun this script."
+else
+    echo "Remember to activate the virtualenv:"
+    echo "source $VENV_DIR/bin/activate"
+fi
+echo
+
+echo "done."
